@@ -31,7 +31,7 @@ def load_hashes_to_memory(filename: str) -> dict:
                 user = sections[0].strip().lower()
                 hash = sections[1].strip()
             except IndexError:
-                raise ValueError("password file has invalid content")
+                raise RuntimeError("password file has invalid content")
             else:
                 password_kv[user] = hash
     return password_kv
@@ -49,36 +49,41 @@ def run_loop(password_kv: dict) -> None:
     """Validate username and passwords from the squid proxy
     using bcrypt."""
     while True:
-        line = sys.stdin.readline()
-        line = line.strip()
-
-        if line == '':
-            write_stdout('BH message="empty line from proxy')
-            continue
-
-        parts = line.split(' ', 1)  # setting maxsplit to 1 makes sure we handle passwords with spaces in them
-
         try:
-            username = parts[0].strip()
-            password = parts[1].strip()
-        except IndexError:
-            write_stdout('BH message="message from proxy is in unexpected format')
-            continue
+            line = sys.stdin.readline()
+            line = line.strip()
 
-        password_hash = password_kv.get(username.lower(), None)
+            if line == '':
+                write_stdout('BH message="empty line from proxy')
+                continue
 
-        if password_hash is None:
-            write_stdout('ERR message="invalid credentials')
-            continue
+            parts = line.split(' ', 1)  # setting maxsplit to 1 makes sure we handle passwords with spaces in them
 
-        authenticated = bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+            try:
+                username = parts[0].strip()
+                password = parts[1].strip()
+            except IndexError:
+                write_stdout('BH message="stdin message invalid format')
+                continue
 
-        if not authenticated:
+            password_hash = password_kv.get(username.lower(), None)
+
+            if password_hash is None:
+                write_stdout('ERR message="invalid credentials')
+                continue
+
+            authenticated = bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+
+            if authenticated:
+                write_stdout('OK')
+                continue
+
             write_stdout('ERR message="invalid credentials"')
             continue
 
-        write_stdout('OK')
-        continue
+        except Exception:
+            write_stdout('BH message="unknown error"')
+            continue
 
 
 def main():
